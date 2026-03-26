@@ -1,0 +1,128 @@
+#include <WiFi.h>
+
+// WiFi credentials
+const char* ssid = "KRISHTEC_GUEST";
+const char* password = "KRISHTEC@G";
+
+WiFiServer server(80);
+
+// Joystick pins
+#define VRX 34
+#define VRY 35
+#define SW  32
+
+// HTML page
+String htmlPage = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+<title>Joystick Drawing</title>
+<style>
+body { text-align:center; font-family:Arial; }
+canvas { border:2px solid black; }
+</style>
+</head>
+<body>
+
+<h2>Joystick Drawing 🎨</h2>
+
+<input type="color" id="colorPicker"><br><br>
+<button onclick="clearCanvas()">Clear</button><br><br>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script>
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+
+let x = 400, y = 300;
+let drawing = false;
+
+// clear button
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+setInterval(() => {
+  fetch("/data")
+  .then(res => res.text())
+  .then(data => {
+    let [vx, vy, sw] = data.split(",").map(Number);
+
+    // movement (adjusted for ESP32)
+    if (vx < 1800) x -= 4;
+    if (vx > 2300) x += 4;
+
+    if (vy < 1800) y -= 4;
+    if (vy > 2300) y += 4;
+
+    // boundary
+    if (x < 0) x = 0;
+    if (x > 800) x = 800;
+    if (y < 0) y = 0;
+    if (y > 600) y = 600;
+
+    // DRAWING (IMPORTANT LINE)
+    drawing = (sw == 0);   // press = draw
+
+    if (drawing) {
+      ctx.fillStyle = document.getElementById("colorPicker").value;
+      ctx.fillRect(x, y, 5, 5);
+    }
+  });
+}, 100);
+</script>
+
+</body>
+</html>
+)rawliteral";
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(SW, INPUT_PULLUP);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting...");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
+}
+
+void loop() {
+  WiFiClient client = server.available();
+
+  if (client) {
+    String request = client.readStringUntil('\r');
+    client.flush();
+
+    // send joystick data
+    if (request.indexOf("/data") != -1) {
+      int vx = analogRead(VRX);
+      int vy = analogRead(VRY);
+      int sw = digitalRead(SW);
+
+      client.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
+      client.print(vx);
+      client.print(",");
+      client.print(vy);
+      client.print(",");
+      client.print(sw);
+    }
+    else {
+      // send webpage
+      client.print("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+      client.print(htmlPage);
+    }
+
+    delay(1);
+    client.stop();
+  }
+}
