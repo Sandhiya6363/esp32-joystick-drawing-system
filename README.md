@@ -1,2 +1,14 @@
-# esp32-joystick-drawing-system
-Developed an ESP32-based IoT system that captures joystick inputs and streams them to a web interface for real-time graphical drawing using HTML5 canvas and WebSocket communication.
+# Joystick Controlled Drawing System
+
+## Description
+This project uses ESP32 and joystick to draw on a webpage.
+
+## Components
+- ESP32
+- Joystick
+
+## How it works
+Joystick → ESP32 → Webpage → Drawing
+
+## Output
+Real-time drawing on browser
